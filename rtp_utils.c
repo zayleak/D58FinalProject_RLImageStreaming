@@ -3,7 +3,6 @@
 #include <stdio.h>
 #include <arpa/inet.h>
 
-// Initialize RTP header with default values
 void init_rtp_header(rtp_header_t *header, uint16_t seq, uint32_t timestamp, uint32_t ssrc) {
     memset(header, 0, sizeof(rtp_header_t));
     
@@ -18,7 +17,6 @@ void init_rtp_header(rtp_header_t *header, uint16_t seq, uint32_t timestamp, uin
     header->ssrc = htonl(ssrc);
 }
 
-// Create an RTP packet with header and payload
 int create_rtp_packet(rtp_packet_t *packet, uint16_t seq, uint32_t timestamp, 
                       uint32_t ssrc, uint8_t *data, size_t data_len) {
     if (data_len > MAX_PAYLOAD_SIZE) {

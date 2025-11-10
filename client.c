@@ -1,3 +1,4 @@
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -7,58 +8,23 @@
 #include <sys/time.h>
 #include <errno.h>
 #include "rtp.h"
+#include "stats.h"
 
-#define BUFFER_SIZE 2000000  // 2MB buffer for reconstructing frames
+#define BUFFER_SIZE 2000000  // 2MB buffer 
 #define TIMEOUT_SEC 5
 
-// Statistics structure
-typedef struct {
-    uint32_t packets_received;
-    uint32_t packets_lost;
-    uint32_t frames_received;
-    uint16_t last_seq;
-    uint32_t total_bytes;
-    struct timeval start_time;
-} stats_t;
-
-void init_stats(stats_t *stats) {
-    memset(stats, 0, sizeof(stats_t));
-    gettimeofday(&stats->start_time, NULL);
-}
-
-void update_stats(stats_t *stats, uint16_t seq, size_t bytes) {
-    uint16_t expected_seq = stats->last_seq + 1;
-    
-    if (stats->packets_received > 0 && seq != expected_seq) {
-        uint16_t lost = seq - expected_seq;
-        stats->packets_lost += lost;
-        printf("Warning: Packet loss detected! Expected seq %u, got %u (lost %u)\n",
-               expected_seq, seq, lost);
+// Save frame to file
+void save_frame(uint8_t *buffer, size_t size, int frame_num) {
+    char filename[64];
+    snprintf(filename, sizeof(filename), "received_frame_%04d.jpg", frame_num);
+    FILE *fp = fopen(filename, "wb");
+    if (fp) {
+        fwrite(buffer, 1, size, fp);
+        fclose(fp);
+        printf("Saved to %s\n", filename);
+    } else {
+        perror("Failed to save frame");
     }
-    
-    stats->packets_received++;
-    stats->total_bytes += bytes;
-    stats->last_seq = seq;
-}
-
-void print_stats(stats_t *stats) {
-    struct timeval now;
-    gettimeofday(&now, NULL);
-    
-    double elapsed = (now.tv_sec - stats->start_time.tv_sec) + 
-                     (now.tv_usec - stats->start_time.tv_usec) / 1000000.0;
-    
-    printf("\n=== Statistics ===\n");
-    printf("Packets received: %u\n", stats->packets_received);
-    printf("Packets lost: %u\n", stats->packets_lost);
-    printf("Frames received: %u\n", stats->frames_received);
-    printf("Total bytes: %u\n", stats->total_bytes);
-    printf("Elapsed time: %.2f seconds\n", elapsed);
-    if (elapsed > 0) {
-        printf("Average bitrate: %.2f kbps\n", 
-               (stats->total_bytes * 8.0) / (elapsed * 1000.0));
-    }
-    printf("==================\n");
 }
 
 int main(int argc, char *argv[]) {
@@ -96,10 +62,12 @@ int main(int argc, char *argv[]) {
     }
     
     printf("RTP Client listening on port %d...\n", port);
+    printf("Press Ctrl+C to stop and save the last frame\n\n");
     
     // Allocate buffers
     uint8_t *frame_buffer = (uint8_t*)malloc(BUFFER_SIZE);
-    if (!frame_buffer) {
+    uint8_t *last_complete_frame = (uint8_t*)malloc(BUFFER_SIZE);
+    if (!frame_buffer || !last_complete_frame) {
         perror("Buffer allocation failed");
         close(sockfd);
         return 1;
@@ -110,6 +78,7 @@ int main(int argc, char *argv[]) {
     
     rtp_packet_t packet;
     size_t frame_offset = 0;
+    size_t last_frame_size = 0;
     uint32_t current_timestamp = 0;
     int frame_count = 0;
     
@@ -123,7 +92,7 @@ int main(int argc, char *argv[]) {
         
         if (recv_len < 0) {
             if (errno == EAGAIN || errno == EWOULDBLOCK) {
-                printf("Timeout waiting for packets. Connection may be lost.\n");
+                printf("\nTimeout waiting for packets. Saving last received frame...\n");
                 print_stats(&stats);
                 break;
             }
@@ -143,15 +112,9 @@ int main(int argc, char *argv[]) {
         if (current_timestamp != 0 && timestamp != current_timestamp) {
             printf("Frame %d complete: %zu bytes\n", frame_count, frame_offset);
             
-            // Save frame to file
-            char filename[64];
-            snprintf(filename, sizeof(filename), "received_frame_%04d.jpg", frame_count);
-            FILE *fp = fopen(filename, "wb");
-            if (fp) {
-                fwrite(frame_buffer, 1, frame_offset, fp);
-                fclose(fp);
-                printf("Saved to %s\n", filename);
-            }
+            // Copy to last_complete_frame buffer (overwrite previous)
+            memcpy(last_complete_frame, frame_buffer, frame_offset);
+            last_frame_size = frame_offset;
             
             stats.frames_received++;
             frame_count++;
@@ -170,7 +133,9 @@ int main(int argc, char *argv[]) {
         
         // Check if this is the last packet of the frame (marker bit)
         if (packet.header.marker) {
-            printf("Received last packet of frame (marker bit set)\n");
+            // Frame is complete, copy it as the last complete frame
+            memcpy(last_complete_frame, frame_buffer, frame_offset);
+            last_frame_size = frame_offset;
         }
         
         // Print stats every 100 packets
@@ -179,8 +144,18 @@ int main(int argc, char *argv[]) {
         }
     }
     
+    // Save the last complete frame when exiting
+    if (last_frame_size > 0) {
+        printf("\nSaving last received frame...\n");
+        save_frame(last_complete_frame, last_frame_size, 0);
+    } else {
+        printf("\nNo complete frame received.\n");
+    }
+    
     print_stats(&stats);
+    
     free(frame_buffer);
+    free(last_complete_frame);
     close(sockfd);
     return 0;
 }

@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include <sys/types.h>
+#include <unistd.h>
 
 // RTP Header Structure (12 bytes minimum)
 typedef struct {

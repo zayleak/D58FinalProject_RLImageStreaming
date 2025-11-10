@@ -8,8 +8,8 @@ all: server client
 server: server.o rtp_utils.o
 	$(CC) $(CFLAGS) -o server server.o rtp_utils.o $(LDFLAGS)
 
-client: client.o rtp_utils.o
-	$(CC) $(CFLAGS) -o client client.o rtp_utils.o $(LDFLAGS)
+client: client.o rtp_utils.o stats.o
+	$(CC) $(CFLAGS) -o client client.o rtp_utils.o stats.o $(LDFLAGS)
 
 server.o: server.c rtp.h
 	$(CC) $(CFLAGS) -c server.c
@@ -19,6 +19,9 @@ client.o: client.c rtp.h
 
 rtp_utils.o: rtp_utils.c rtp.h
 	$(CC) $(CFLAGS) -c rtp_utils.c
+
+stats.o: stats.c stats.h
+	$(CC) $(CFLAGS) -c stats.c
 
 clean:
 	rm -f *.o server client received_frame_*.jpg
