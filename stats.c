@@ -7,16 +7,10 @@
 #include <sys/socket.h>
 #include <sys/time.h>
 #include <errno.h>
+#include "stats.h"
 
 // Statistics structure
-typedef struct {
-    uint32_t packets_received;
-    uint32_t packets_lost;
-    uint32_t frames_received;
-    uint16_t last_seq;
-    uint32_t total_bytes;
-    struct timeval start_time;
-} stats_t;
+
 
 void init_stats(stats_t *stats) {
     memset(stats, 0, sizeof(stats_t));
@@ -44,12 +38,12 @@ void print_stats(stats_t *stats) {
     
     double elapsed = (now.tv_sec - stats->start_time.tv_sec) + 
                      (now.tv_usec - stats->start_time.tv_usec) / 1000000.0;
-    
     printf("\n=== Statistics ===\n");
     printf("Packets received: %u\n", stats->packets_received);
     printf("Packets lost: %u\n", stats->packets_lost);
     printf("Frames received: %u\n", stats->frames_received);
     printf("Total bytes: %u\n", stats->total_bytes);
+    printf("Retransmit requests: %u\n", stats->retransmit_requests);
     printf("Elapsed time: %.2f seconds\n", elapsed);
     if (elapsed > 0) {
         printf("Average bitrate: %.2f kbps\n", 

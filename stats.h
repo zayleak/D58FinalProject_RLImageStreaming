@@ -19,6 +19,7 @@ typedef struct {
     uint32_t frames_received;
     uint16_t last_seq;
     uint32_t total_bytes;
+    uint32_t retransmit_requests;
     struct timeval start_time;
 } stats_t;
 

@@ -24,12 +24,21 @@ typedef struct {
     uint8_t payload[65507];  // Max UDP payload size
 } rtp_packet_t;
 
+typedef struct {
+    uint8_t type;           // 0 = RTP data, 1 = NACK request
+    uint16_t seq_start;     // First missing sequence number
+    uint16_t seq_count;     // Number of consecutive missing packets
+} __attribute__((packed)) nack_packet_t;
+
 // Configuration constants
 #define RTP_VERSION 2
 #define RTP_PAYLOAD_TYPE_JPEG 26
 #define MAX_PACKET_SIZE 65535
 #define MAX_PAYLOAD_SIZE (MAX_PACKET_SIZE - sizeof(rtp_header_t))
 #define DEFAULT_PORT 5004
+
+#define PACKET_TYPE_RTP 0
+#define PACKET_TYPE_NACK 1
 
 // Function prototypes
 void init_rtp_header(rtp_header_t *header, uint16_t seq, uint32_t timestamp, uint32_t ssrc);

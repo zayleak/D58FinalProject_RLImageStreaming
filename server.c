@@ -8,10 +8,39 @@
 #include <errno.h>
 #include "rtp.h"
 
-#define FRAME_RATE 30  // Frames per second
-#define CHUNK_SIZE 1400  // Max payload per packet (safe for MTU)
+#define CHUNK_SIZE 1400
+#define MAX_STORED_PACKETS 1000  // Store sent packets for retransmission
 
-// Read image file into buffer
+// Stored packet for retransmission
+typedef struct {
+    rtp_packet_t packet;
+    size_t size;
+    uint16_t seq;
+    int valid;
+} stored_packet_t;
+
+// Packet storage
+stored_packet_t packet_storage[MAX_STORED_PACKETS];
+
+// Store sent packet for possible retransmission
+void store_packet(rtp_packet_t *packet, size_t size, uint16_t seq) {
+    int index = seq % MAX_STORED_PACKETS;
+    memcpy(&packet_storage[index].packet, packet, size);
+    packet_storage[index].size = size;
+    packet_storage[index].seq = seq;
+    packet_storage[index].valid = 1;
+}
+
+// Retrieve stored packet
+stored_packet_t* get_stored_packet(uint16_t seq) {
+    int index = seq % MAX_STORED_PACKETS;
+    if (packet_storage[index].valid && packet_storage[index].seq == seq) {
+        return &packet_storage[index];
+    }
+    return NULL;
+}
+
+// Read image file
 uint8_t* read_image_file(const char *filename, size_t *file_size) {
     FILE *fp = fopen(filename, "rb");
     if (!fp) {
@@ -31,16 +60,15 @@ uint8_t* read_image_file(const char *filename, size_t *file_size) {
     
     fread(buffer, 1, *file_size, fp);
     fclose(fp);
-    
     return buffer;
 }
 
-// Get current timestamp in milliseconds
 uint32_t get_timestamp_ms() {
     struct timeval tv;
     gettimeofday(&tv, NULL);
     return (tv.tv_sec * 1000) + (tv.tv_usec / 1000);
 }
+
 
 int main(int argc, char *argv[]) {
     if (argc != 4) {
@@ -52,19 +80,27 @@ int main(int argc, char *argv[]) {
     int port = atoi(argv[2]);
     const char *image_file = argv[3];
     
+    // Create UDP socket
     int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
     if (sockfd < 0) {
         perror("Socket creation failed");
         return 1;
     }
     
+    // Set socket to non-blocking to check for NACKs
+    struct timeval timeout;
+    timeout.tv_sec = 0;
+    timeout.tv_usec = 1000;  // 1ms timeout
+    setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
+    
+    // Setup client address
     struct sockaddr_in client_addr;
     memset(&client_addr, 0, sizeof(client_addr));
     client_addr.sin_family = AF_INET;
     client_addr.sin_port = htons(port);
     client_addr.sin_addr.s_addr = inet_addr(client_ip);
     
-    // Read image file
+    // Read image
     size_t image_size;
     uint8_t *image_data = read_image_file(image_file, &image_size);
     if (!image_data) {
@@ -72,60 +108,115 @@ int main(int argc, char *argv[]) {
         return 1;
     }
     
-    printf("Starting RTP Server...\n");
-    printf("Image size: %zu bytes\n", image_size);
-    printf("Streaming to %s:%d\n", client_ip, port);
+    printf("Enhanced RTP Server with Retransmission\n");
+    printf("Image: %s (%zu bytes)\n", image_file, image_size);
+    printf("Sending to %s:%d\n\n", client_ip, port);
     
-    // RTP streaming parameters
+    memset(packet_storage, 0, sizeof(packet_storage));
+    
+    
+    uint32_t ssrc = 0x12345678;
     uint16_t sequence = 0;
-    uint32_t ssrc = 0x12345678;  // Random SSRC identifier
-    uint32_t frame_interval_us = 1000000 / FRAME_RATE;  // Microseconds between frames
-    
-    // Stream continuously (press Ctrl+C to stop)
+
+
+    // Send all packets
     while (1) {
-        uint32_t frame_timestamp = get_timestamp_ms();
+        printf("Sending image...\n");
         size_t offset = 0;
-        int packet_count = 0;
-        
-        printf("\nSending frame (seq starts at %u)...\n", sequence);
-        
-        // Fragment image into multiple RTP packets
+        int packets_sent = 0;
+        int retransmissions = 0;
+      
+
+        uint32_t timestamp = get_timestamp_ms();
+
         while (offset < image_size) {
             rtp_packet_t packet;
             size_t chunk_size = (image_size - offset > CHUNK_SIZE) ? 
                                 CHUNK_SIZE : (image_size - offset);
-            
-
-            int packet_size = create_rtp_packet(&packet, sequence, frame_timestamp, 
-                                                ssrc, image_data + offset, chunk_size);
-            
-            // Mark last packet of frame
+        
+            int packet_size = create_rtp_packet(&packet, sequence, timestamp,
+                                               ssrc, image_data + offset, chunk_size);
+        
+            // Mark last packet
             if (offset + chunk_size >= image_size) {
                 packet.header.marker = 1;
+                printf("Packet %d (seq=%u): %zu bytes [LAST PACKET]\n", 
+                       packets_sent, sequence, chunk_size);
+            } else if (packets_sent % 10 == 0) {
+                printf("Packet %d (seq=%u): %zu bytes\n", 
+                       packets_sent, sequence, chunk_size);
             }
-            
+        
             // Send packet
-            ssize_t sent = sendto(sockfd, &packet, packet_size, 0,
-                                 (struct sockaddr*)&client_addr, sizeof(client_addr));
-            
-            if (sent < 0) {
-                perror("sendto failed");
-            } else {
-                packet_count++;
-            }
-            
+            sendto(sockfd, &packet, packet_size, 0,
+                   (struct sockaddr*)&client_addr, sizeof(client_addr));
+        
+            // Store for retransmission
+            store_packet(&packet, packet_size, sequence);
+        
             offset += chunk_size;
             sequence++;
+            packets_sent++;
+        
+            usleep(1000);  // 1ms delay between packets
+        
+            // Check for NACK requests
+            nack_packet_t nack;
+            struct sockaddr_in nack_addr;
+            socklen_t nack_addr_len = sizeof(nack_addr);
+        
+            ssize_t nack_len = recvfrom(sockfd, &nack, sizeof(nack), 0,
+                                        (struct sockaddr*)&nack_addr, &nack_addr_len);
+        
+            if (nack_len > 0 && nack.type == PACKET_TYPE_NACK) {
+                uint16_t missing_seq = ntohs(nack.seq_start);
+                printf("\nReceived NACK for seq=%u, retransmitting...\n", missing_seq);
             
-            // Small delay between packets to avoid overwhelming the network
-            usleep(100);
+                stored_packet_t *stored = get_stored_packet(missing_seq);
+                if (stored) {
+                    sendto(sockfd, &stored->packet, stored->size, 0,
+                           (struct sockaddr*)&client_addr, sizeof(client_addr));
+                    retransmissions++;
+                    printf("Retransmitted packet seq=%u\n\n", missing_seq);
+                } else {
+                    printf("Warning: Requested packet seq=%u not in storage\n\n", missing_seq);
+                }
+            }
         }
+    
+        // Wait a bit for any final NACK requests
+        printf("\nWaiting for retransmission requests...\n");
+        sleep(2);
+    
+        // Check for final NACKs
+        for (int i = 0; i < 10; i++) {
+            nack_packet_t nack;
+            struct sockaddr_in nack_addr;
+            socklen_t nack_addr_len = sizeof(nack_addr);
         
-        printf("Sent %d packets for frame\n", packet_count);
+            ssize_t nack_len = recvfrom(sockfd, &nack, sizeof(nack), 0,
+                                        (struct sockaddr*)&nack_addr, &nack_addr_len);
         
-        // Wait for next frame interval
-        usleep(frame_interval_us);
+            if (nack_len > 0 && nack.type == PACKET_TYPE_NACK) {
+                uint16_t missing_seq = ntohs(nack.seq_start);
+                printf("Final NACK for seq=%u\n", missing_seq);
+            
+                stored_packet_t *stored = get_stored_packet(missing_seq);
+                if (stored) {
+                    sendto(sockfd, &stored->packet, stored->size, 0,
+                           (struct sockaddr*)&client_addr, sizeof(client_addr));
+                    retransmissions++;
+                }
+            }
+        
+            usleep(200000);  // 200ms
+        }
+        printf("\n=== Transmission Complete ===\n");
+        printf("Packets sent: %d\n", packets_sent);
+        printf("Retransmissions: %d\n", retransmissions);
     }
+    
+
     
     free(image_data);
     close(sockfd);

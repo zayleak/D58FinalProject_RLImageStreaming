@@ -8,8 +8,14 @@ all: server client
 server: server.o rtp_utils.o
 	$(CC) $(CFLAGS) -o server server.o rtp_utils.o $(LDFLAGS)
 
-client: client.o rtp_utils.o stats.o
-	$(CC) $(CFLAGS) -o client client.o rtp_utils.o stats.o $(LDFLAGS)
+client: client.o rtp_utils.o stats.o jitter_buffer.o reorder_buffer.o
+	$(CC) $(CFLAGS) -o client client.o rtp_utils.o stats.o jitter_buffer.o reorder_buffer.o $(LDFLAGS)
+
+jitter_buffer.o: jitter_buffer.c jitter_buffer.h
+	$(CC) $(CFLAGS) -c jitter_buffer.c
+
+reorder_buffer.o: reorder_buffer.c reorder_buffer.h
+	$(CC) $(CFLAGS) -c reorder_buffer.c
 
 server.o: server.c rtp.h
 	$(CC) $(CFLAGS) -c server.c

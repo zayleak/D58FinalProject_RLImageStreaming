@@ -5,7 +5,6 @@
 
 void init_rtp_header(rtp_header_t *header, uint16_t seq, uint32_t timestamp, uint32_t ssrc) {
     memset(header, 0, sizeof(rtp_header_t));
-    
     header->version = RTP_VERSION;
     header->padding = 0;
     header->extension = 0;
