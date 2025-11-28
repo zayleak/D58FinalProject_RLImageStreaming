@@ -1,5 +1,17 @@
-#include <stdio.h> // For printf (Warning message)
+#define _POSIX_C_SOURCE 200809L
+#include <stdio.h>
+#include <string.h>
+#include <time.h>     // Required for clock_gettime
+#include <sys/time.h> // Keep for struct timeval definition
 #include "jitter_buffer.h"
+
+void get_monotonic_time(struct timeval *tv) {
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+
+    tv->tv_sec = ts.tv_sec;
+    tv->tv_usec = ts.tv_nsec / 1000;
+}
 
 // Initialize jitter buffer
 void init_jitter_buffer(jitter_buffer_t *jb) {
@@ -7,6 +19,14 @@ void init_jitter_buffer(jitter_buffer_t *jb) {
     jb->head = 0;
     jb->tail = 0;
     jb->count = 0;
+    
+    // Initialize all slots properly
+    for (int i = 0; i < JITTER_BUFFER_SIZE; i++) {
+        jb->buffer[i].valid = 0;
+        jb->buffer[i].packet_size = 0;
+        jb->buffer[i].arrival_time.tv_sec = 0;
+        jb->buffer[i].arrival_time.tv_usec = 0;
+    }
 }
 
 // Add packet to jitter buffer
@@ -15,41 +35,55 @@ int jitter_buffer_add(jitter_buffer_t *jb, rtp_packet_t *packet, size_t size) {
         printf("Warning: Jitter buffer full!\n");
         return -1;
     }
-    printf("Added packet to Jitter Buffer. Current Count: %d\n", jb->count);
-    // Store packet
-    memcpy(&jb->buffer[jb->head].packet, packet, size);
-    gettimeofday(&jb->buffer[jb->head].arrival_time, NULL);
-    jb->buffer[jb->head].packet_size = size;
-    jb->buffer[jb->head].valid = 1;
+    
+    int current_index = jb->head; // Save index to print correctly later
 
-    // Move head forward (circular buffer logic)
+    // Store packet
+    memcpy(&jb->buffer[current_index].packet, packet, size);
+    
+    // CRITICAL FIX: Use Monotonic time
+    get_monotonic_time(&jb->buffer[current_index].arrival_time);
+    
+    jb->buffer[current_index].packet_size = size;
+    jb->buffer[current_index].valid = 1;
+    
+    // Move head forward
     jb->head = (jb->head + 1) % JITTER_BUFFER_SIZE;
     jb->count++;
+    
+    // Debug print (Fixed to print the packet we actually just added)
+    // Note: %ld for tv_sec might warn on some systems, cast to (long) is safer
+    printf("Added packet to Jitter Buffer. Current Count: %d, arrival_time: %ld.%06ld\n", 
+           jb->count, 
+           (long)jb->buffer[current_index].arrival_time.tv_sec,
+           (long)jb->buffer[current_index].arrival_time.tv_usec);
+    
     return 0;
 }
 
 // Get time difference in milliseconds
+// (Subtracts start from end)
 long time_diff_ms(struct timeval *start, struct timeval *end) {
-    // Convert each timeval to total milliseconds, then subtract
-    long start_ms = (long)(start->tv_sec) * 1000L + (long)(start->tv_usec) / 1000L;
-    long end_ms = (long)(end->tv_sec) * 1000L + (long)(end->tv_usec) / 1000L;
-    printf(" start_time: %ld\n, end_time: %ld\n", start_ms, end_ms);
-    return end_ms - start_ms;
+    long seconds = end->tv_sec - start->tv_sec;
+    long useconds = end->tv_usec - start->tv_usec;
+
+    // (seconds * 1000) + (microseconds / 1000)
+    long mtime = (seconds * 1000) + (useconds / 1000);
+
+    return mtime;
 }
 
 // Try to get a packet from jitter buffer (if ready)
-// Returns: pointer to packet if ready, NULL if should wait longer
 rtp_packet_t* jitter_buffer_get(jitter_buffer_t *jb, size_t *size) {
     if (jb->count == 0) {
         return NULL;  // Buffer empty
     }
 
-    // Check if oldest packet has been in buffer long enough
+    // Get current monotonic time to compare
     struct timeval now;
-    gettimeofday(&now, NULL);
+    get_monotonic_time(&now);
 
     long elapsed = time_diff_ms(&jb->buffer[jb->tail].arrival_time, &now);
-    printf(" Timestamp elapsed: %ld\n", elapsed);
 
     if (elapsed >= JITTER_DELAY_MS) {
         // Packet is ready to be released

@@ -140,7 +140,7 @@ int main(int argc, char *argv[]) {
         } else if (errno == EAGAIN || errno == EWOULDBLOCK) {
             // Timeout - check if we should request retransmission
             consecutive_timeouts++;
-            
+            printf("consecutive_timeouts");
             if (consecutive_timeouts > 20 && server_addr_set) {  // 1 second of timeouts
                 uint16_t missing = find_missing_packet(&reorder_buf);
                 if (missing > 0 && stats.retransmit_requests < MAX_RETRANSMIT_REQUESTS) {
