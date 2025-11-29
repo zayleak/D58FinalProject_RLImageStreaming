@@ -20,6 +20,7 @@ typedef struct {
     uint16_t last_seq;
     uint32_t total_bytes;
     uint32_t retransmit_requests;
+    uint32_t packets_reordered;
     struct timeval start_time;
 } stats_t;
 

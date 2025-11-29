@@ -37,25 +37,16 @@ int insert_packet(reorder_buffer_t *buffer, uint16_t seq, uint8_t *data, size_t 
         buffer->initialized = 1;
     }
 
-    // Is this the packet we're waiting for?
-    if (seq == buffer->expected_seq) {
-        // Perfect! This is in order
-
-        buffer->expected_seq++;
-        return 1;  // Process immediately
-    }
-
-    // Out of order - store in buffer
+        // Out of order - store in buffer
     // Calculate buffer index based on how far ahead this packet is
     int16_t offset = (int16_t)(seq - buffer->expected_seq);
-
+    // Is this the packet we're waiting for?
     if (offset < 0) {
         // Old packet (duplicate or very late) - ignore
         printf("Ignoring old packet: seq=%u (expected=%u)\n", seq, buffer->expected_seq);
         return 0;
     }
-
-    if (offset >= REORDER_BUFFER_SIZE) {
+    else if (offset >= REORDER_BUFFER_SIZE) {
         // Too far ahead - buffer full or packet is beyond the buffer's window
         printf("Warning: Packet too far ahead, buffer full (seq=%u, expected=%u)\n",
                 seq, buffer->expected_seq);
@@ -76,16 +67,19 @@ int insert_packet(reorder_buffer_t *buffer, uint16_t seq, uint8_t *data, size_t 
     buffer->slots[slot_index].size = size;
     buffer->slots[slot_index].valid = 1;
 
-    printf("Buffered out-of-order packet: seq=%u at slot %d (expected=%u)\n",
-        seq, slot_index, buffer->expected_seq);
+    if (offset > 0) {
+        printf("Buffered out-of-order packet: seq=%u at slot %d (expected=%u)\n",
+            seq, slot_index, buffer->expected_seq);
+        return 1;
+    }
 
     return 0;  // Don't process yet
 }
-
 // Check if next expected packet is in buffer (slot 0)
 // Returns: pointer to the payload data if found, NULL if not
 uint8_t* get_next_packet(reorder_buffer_t *buffer, size_t *size) {
     // Check if slot 0 (which corresponds to expected_seq) has the next packet
+
     if (buffer->slots[0].valid && buffer->slots[0].seq == buffer->expected_seq) {
         // Packet found!
 
@@ -94,7 +88,6 @@ uint8_t* get_next_packet(reorder_buffer_t *buffer, size_t *size) {
         // Store the pointer to the data buffer that is about to be released/recycled
         uint8_t* data_to_return = buffer->slots[0].data; 
 
-        // 2. Update expected sequence number
         buffer->expected_seq++;
 
         // 3. Shift the buffer slots down by one

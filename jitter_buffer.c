@@ -20,7 +20,6 @@ void init_jitter_buffer(jitter_buffer_t *jb) {
     jb->tail = 0;
     jb->count = 0;
     
-    // Initialize all slots properly
     for (int i = 0; i < JITTER_BUFFER_SIZE; i++) {
         jb->buffer[i].valid = 0;
         jb->buffer[i].packet_size = 0;
@@ -40,8 +39,8 @@ int jitter_buffer_add(jitter_buffer_t *jb, rtp_packet_t *packet, size_t size) {
 
     // Store packet
     memcpy(&jb->buffer[current_index].packet, packet, size);
+    //printf("seq num of added packet: %u\n", packet->header.sequence);
     
-    // CRITICAL FIX: Use Monotonic time
     get_monotonic_time(&jb->buffer[current_index].arrival_time);
     
     jb->buffer[current_index].packet_size = size;

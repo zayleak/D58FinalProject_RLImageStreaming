@@ -111,53 +111,62 @@ int main(int argc, char *argv[]) {
     
     stats_t stats;
     init_stats(&stats);
-    
-    rtp_packet_t packet;
+   
     size_t frame_offset = 0;
     size_t last_frame_size = 0;
     uint32_t current_timestamp = 0;
     int frame_count = 0;
     uint16_t frame_start_seq = 0;
-    int consecutive_timeouts = 0;
+    uint16_t max_seq_received = 0;
+    int first_packet = 1;
 
     struct sockaddr_in server_addr;
     socklen_t server_addr_len = sizeof(server_addr);
-    int server_addr_set = 0;
-    
-    // Receive packets
+
+        // Receive packets
     while (1) {
         rtp_packet_t packet;
         ssize_t recv_len = recvfrom(sockfd, &packet, sizeof(packet), 0,
                                     (struct sockaddr*)&server_addr, &server_addr_len);
+        stats.packets_received++;
         
         if (recv_len > 0) {
-            consecutive_timeouts = 0;
-            server_addr_set = 1;
+            uint16_t seq = ntohs(packet.header.sequence);
+
+            // --- NEW NACK STRATEGY START ---
+            if (first_packet) {
+                max_seq_received = seq;
+                first_packet = 0;
+            } else {
+                // Check for gap
+                int16_t diff = seq - max_seq_received;
             
-            // Add to jitter buffer
-            jitter_buffer_add(&jitter_buf, &packet, recv_len);
-            stats.packets_received++;
-        } else if (errno == EAGAIN || errno == EWOULDBLOCK) {
-            // Timeout - check if we should request retransmission
-            consecutive_timeouts++;
-            printf("consecutive_timeouts");
-            if (consecutive_timeouts > 20 && server_addr_set) {  // 1 second of timeouts
-                uint16_t missing = find_missing_packet(&reorder_buf);
-                if (missing > 0 && stats.retransmit_requests < MAX_RETRANSMIT_REQUESTS) {
-                    send_nack(sockfd, &server_addr, missing);
-                    stats.retransmit_requests++;
+                // If diff is 1, perfect (100 -> 101).
+                // If diff <= 0, it's an old or out-of-order packet we already passed.
+                // If diff > 1, we missed packets!
+                if (diff > 1 && diff < 100) { // < 100 sanity check to prevent NACKing on restart
+                    printf("Gap detected! Last: %u, Current: %u. NACKing %d packets.\n", 
+                            max_seq_received, seq, diff - 1);
+                
+                    // NACK everything in the gap
+                    for (int i = 1; i < diff; i++) {
+                        uint16_t missing_seq = max_seq_received + i;
+                        send_nack(sockfd, &server_addr, missing_seq);
+                        stats.retransmit_requests++;
+                    }
                 }
-            }
             
-            if (consecutive_timeouts > 100) {  // 5 seconds
-                printf("\nNo packets for 5 seconds. Ending...\n");
-                break;
+                // Update max only if this is newer
+                if (diff > 0) max_seq_received = seq;
             }
+
+            jitter_buffer_add(&jitter_buf, &packet, recv_len);
         }
         
         // Step 2: Process packets from jitter buffer (if ready)
         size_t jitter_packet_size;
         rtp_packet_t *ready_packet = jitter_buffer_get(&jitter_buf, &jitter_packet_size);
+
         
         if (ready_packet != NULL) {
             // Extract packet info
@@ -187,12 +196,8 @@ int main(int argc, char *argv[]) {
             int in_order = insert_packet(&reorder_buf, seq, 
                                         ready_packet->payload, payload_size);
             
-            if (in_order) {
-                // Process immediately
-                process_packet(frame_buffer, &frame_offset, seq, 
-                             ready_packet->payload, payload_size, frame_start_seq);
-            } else {
-                //stats.packets_reordered++;
+            if (!in_order) {
+                stats.packets_reordered++;
             }
             
             // Step 4: Check if reorder buffer has next expected packet

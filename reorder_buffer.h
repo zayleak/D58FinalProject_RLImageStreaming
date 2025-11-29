@@ -5,7 +5,8 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define REORDER_BUFFER_SIZE 100  // Can hold up to 100 out-of-order packets
+#define REORDER_BUFFER_SIZE 101  // Can hold up to 100 out-of-order packets
+//Note Slot 0 is where expected_seq = current_seq
 
 // Slot in reorder buffer
 typedef struct {

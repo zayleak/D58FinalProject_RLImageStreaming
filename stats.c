@@ -44,6 +44,7 @@ void print_stats(stats_t *stats) {
     printf("Frames received: %u\n", stats->frames_received);
     printf("Total bytes: %u\n", stats->total_bytes);
     printf("Retransmit requests: %u\n", stats->retransmit_requests);
+    printf("Packets Reordered: %u\n", stats->packets_reordered);
     printf("Elapsed time: %.2f seconds\n", elapsed);
     if (elapsed > 0) {
         printf("Average bitrate: %.2f kbps\n", 
