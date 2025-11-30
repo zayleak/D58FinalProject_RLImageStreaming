@@ -1,10 +1,12 @@
 #include "reorder_buffer.h"
 #include <stdio.h> // For printf (logging/warnings)
+#include "time_utils.h"
 
 // Initialize reorder buffer and allocate memory for slots
 void init_reorder_buffer(reorder_buffer_t *buffer) {
     memset(buffer, 0, sizeof(reorder_buffer_t));
     buffer->initialized = 0;
+    get_monotonic_time(&buffer->packet_wait_time);
 
     // Allocate memory for each slot's payload buffer
     for (int i = 0; i < REORDER_BUFFER_SIZE; i++) {
@@ -48,8 +50,9 @@ int insert_packet(reorder_buffer_t *buffer, uint16_t seq, uint8_t *data, size_t 
     }
     else if (offset >= REORDER_BUFFER_SIZE) {
         // Too far ahead - buffer full or packet is beyond the buffer's window
-        printf("Warning: Packet too far ahead, buffer full (seq=%u, expected=%u)\n",
+        printf("Warning: Packet too far ahead, buffer full moving reorder buffer (seq=%u, expected=%u)\n",
                 seq, buffer->expected_seq);
+        
         return 0;
     }
         
@@ -75,64 +78,45 @@ int insert_packet(reorder_buffer_t *buffer, uint16_t seq, uint8_t *data, size_t 
 
     return 0;  // Don't process yet
 }
+
+uint8_t* shift_seq(reorder_buffer_t *buffer) {
+    buffer->expected_seq++;
+
+    uint8_t* data_to_return = buffer->slots[0].data; 
+    // 3. Shift the buffer slots down by one
+    for (int i = 0; i < REORDER_BUFFER_SIZE - 1; i++) {
+        // Copy the entire struct (metadata and the data pointer) from i+1 to i
+        buffer->slots[i] = buffer->slots[i + 1];
+    }
+
+    buffer->slots[REORDER_BUFFER_SIZE - 1].data = data_to_return;
+    buffer->slots[REORDER_BUFFER_SIZE - 1].valid = 0;
+    buffer->slots[REORDER_BUFFER_SIZE - 1].seq = 0;
+    buffer->slots[REORDER_BUFFER_SIZE - 1].size = 0;
+    get_monotonic_time(&buffer->packet_wait_time);
+    return data_to_return;
+}
+
 // Check if next expected packet is in buffer (slot 0)
 // Returns: pointer to the payload data if found, NULL if not
-uint8_t* get_next_packet(reorder_buffer_t *buffer, size_t *size) {
+uint8_t* get_next_packet(reorder_buffer_t *buffer, size_t *size, stats_t *stats) {
     // Check if slot 0 (which corresponds to expected_seq) has the next packet
 
     if (buffer->slots[0].valid && buffer->slots[0].seq == buffer->expected_seq) {
-        // Packet found!
-
-        // 1. Capture the data to be returned (before shifting)
         *size = buffer->slots[0].size;
-        // Store the pointer to the data buffer that is about to be released/recycled
-        uint8_t* data_to_return = buffer->slots[0].data; 
+        return shift_seq(buffer);;
+    }
 
-        buffer->expected_seq++;
-
-        // 3. Shift the buffer slots down by one
-        for (int i = 0; i < REORDER_BUFFER_SIZE - 1; i++) {
-            // Copy the entire struct (metadata and the data pointer) from i+1 to i
-            buffer->slots[i] = buffer->slots[i + 1];
+    struct timeval now;
+    get_monotonic_time(&now);
+    long elapsed = time_diff_ms(&buffer->packet_wait_time, &now);
+    if (elapsed > NEXT_PACKET_WAIT_MS) {
+        if (stats != NULL) {
+            stats->packets_lost++;
         }
-
-        // 4. Invalidate and clear the last slot (which now holds duplicate/garbage metadata)
-        // CRITICAL: The data pointer in the last slot is now owned by the slot before it.
-        // We ensure we reuse the *original* memory block from the first released slot (data_to_return)
-        // by making the last slot point to it. This keeps the memory pool fixed.
-        buffer->slots[REORDER_BUFFER_SIZE - 1].data = data_to_return;
-        buffer->slots[REORDER_BUFFER_SIZE - 1].valid = 0;
-        buffer->slots[REORDER_BUFFER_SIZE - 1].seq = 0;
-        buffer->slots[REORDER_BUFFER_SIZE - 1].size = 0;
-
-        // 5. Return the pointer to the payload data of the released packet
-        return data_to_return;
+        shift_seq(buffer);
+        return get_next_packet(buffer, size, stats);
     }
 
     return NULL; // Next expected packet not in slot 0
-}
-
-// Check for missing packets (gaps in sequence)
-// Returns: sequence number of first missing packet, or 0 if none
-uint16_t find_missing_packet(reorder_buffer_t *buffer) {
-    if (!buffer->initialized) {
-        return 0;
-    }
-
-    // If slot 0 is not valid, we are missing the expected sequence number.
-    if (!buffer->slots[0].valid) {
-        // Iterate to see if any packet exists in the buffer (meaning we have a gap)
-        for (int i = 1; i < REORDER_BUFFER_SIZE; i++) {
-             if (buffer->slots[i].valid) {
-                 // Found a packet (i > 0) while slot 0 is missing.
-                 // This confirms a gap starting at buffer->expected_seq.
-                 return buffer->expected_seq;
-             }
-        }
-    }
-    
-    // If slot 0 is valid, get_next_packet handles it. 
-    // If the buffer is empty (no valid packets), there is no evidence of a loss, so return 0.
-
-    return 0;
 }

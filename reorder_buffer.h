@@ -4,8 +4,12 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/time.h>
+#include "stats.h"
 
 #define REORDER_BUFFER_SIZE 101  // Can hold up to 100 out-of-order packets
+#define NEXT_PACKET_WAIT_MS 100
+
 //Note Slot 0 is where expected_seq = current_seq
 
 // Slot in reorder buffer
@@ -14,6 +18,7 @@ typedef struct {
     uint8_t *data;          // Packet payload (dynamically allocated)
     size_t size;            // Payload size
     int valid;              // 1 = slot contains valid data, 0 = empty
+
 } packet_slot_t;
 
 // Reorder buffer structure
@@ -21,6 +26,7 @@ typedef struct {
     packet_slot_t slots[REORDER_BUFFER_SIZE];
     uint16_t expected_seq;  // Next sequence number we expect
     int initialized;        // Has expected_seq been set?
+    struct timeval packet_wait_time; // for timeout
 } reorder_buffer_t;
 
 // Function Prototypes
@@ -37,10 +43,6 @@ int insert_packet(reorder_buffer_t *buffer, uint16_t seq, uint8_t *data, size_t 
 
 // Check if next expected packet is in buffer (slot 0)
 // Returns: pointer to the payload data if found, NULL if not
-uint8_t* get_next_packet(reorder_buffer_t *buffer, size_t *size);
-
-// Check for missing packets (gaps in sequence)
-// Returns: sequence number of first missing packet, or 0 if none
-uint16_t find_missing_packet(reorder_buffer_t *buffer);
+uint8_t* get_next_packet(reorder_buffer_t *buffer, size_t *size, stats_t *stats);
 
 #endif // REORDER_BUFFER_H

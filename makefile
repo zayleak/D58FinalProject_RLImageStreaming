@@ -8,13 +8,13 @@ all: server client
 server: server.o rtp_utils.o
 	$(CC) $(CFLAGS) -o server server.o rtp_utils.o $(LDFLAGS)
 
-client: client.o rtp_utils.o stats.o jitter_buffer.o reorder_buffer.o
-	$(CC) $(CFLAGS) -o client client.o rtp_utils.o stats.o jitter_buffer.o reorder_buffer.o $(LDFLAGS)
+client: client.o rtp_utils.o stats.o jitter_buffer.o reorder_buffer.o time_utils.o
+	$(CC) $(CFLAGS) -o client client.o rtp_utils.o stats.o jitter_buffer.o reorder_buffer.o time_utils.o $(LDFLAGS)
 
-jitter_buffer.o: jitter_buffer.c jitter_buffer.h
+jitter_buffer.o: jitter_buffer.c jitter_buffer.h 
 	$(CC) $(CFLAGS) -c jitter_buffer.c
 
-reorder_buffer.o: reorder_buffer.c reorder_buffer.h
+reorder_buffer.o: reorder_buffer.c reorder_buffer.h 
 	$(CC) $(CFLAGS) -c reorder_buffer.c
 
 server.o: server.c rtp.h
@@ -28,6 +28,9 @@ rtp_utils.o: rtp_utils.c rtp.h
 
 stats.o: stats.c stats.h
 	$(CC) $(CFLAGS) -c stats.c
+
+time_utils.o: time_utils.c time_utils.h
+	$(CC) $(CFLAGS) -c time_utils.c
 
 clean:
 	rm -f *.o server client received_frame_*.jpg

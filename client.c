@@ -15,7 +15,6 @@
 #define BUFFER_SIZE 10000000  // 10MB buffer
 #define TIMEOUT_SEC 5
 #define TIMEOUT_MS 50         // 50ms timeout for non-blocking receives
-#define MAX_RETRANSMIT_REQUESTS 3
 
 // Save frame to file
 void save_frame(uint8_t *buffer, size_t size, int frame_num) {
@@ -129,6 +128,8 @@ int main(int argc, char *argv[]) {
         ssize_t recv_len = recvfrom(sockfd, &packet, sizeof(packet), 0,
                                     (struct sockaddr*)&server_addr, &server_addr_len);
         stats.packets_received++;
+        stats.total_bytes += recv_len;
+
         
         if (recv_len > 0) {
             uint16_t seq = ntohs(packet.header.sequence);
@@ -202,7 +203,7 @@ int main(int argc, char *argv[]) {
             
             // Step 4: Check if reorder buffer has next expected packet
             size_t buffered_size;
-            uint8_t *buffered_data = get_next_packet(&reorder_buf, &buffered_size);
+            uint8_t *buffered_data = get_next_packet(&reorder_buf, &buffered_size, &stats);
             
             while (buffered_data != NULL) {
                 // Process buffered packet
@@ -214,7 +215,7 @@ int main(int argc, char *argv[]) {
            
                 
                 // Check for more
-                buffered_data = get_next_packet(&reorder_buf, &buffered_size);
+                buffered_data = get_next_packet(&reorder_buf, &buffered_size, &stats);
             }
             
             // Check for marker bit (last packet)

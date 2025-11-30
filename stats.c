@@ -8,13 +8,13 @@
 #include <sys/time.h>
 #include <errno.h>
 #include "stats.h"
-
+#include "time_utils.h"
 // Statistics structure
 
 
 void init_stats(stats_t *stats) {
     memset(stats, 0, sizeof(stats_t));
-    gettimeofday(&stats->start_time, NULL);
+    get_monotonic_time(&stats->start_time);
 }
 
 void update_stats(stats_t *stats, uint16_t seq, size_t bytes) {
@@ -34,23 +34,33 @@ void update_stats(stats_t *stats, uint16_t seq, size_t bytes) {
 
 void print_stats(stats_t *stats) {
     struct timeval now;
-    gettimeofday(&now, NULL);
+    get_monotonic_time(&now);
     
-    double elapsed = (now.tv_sec - stats->start_time.tv_sec) + 
-                     (now.tv_usec - stats->start_time.tv_usec) / 1000000.0;
+    // Elapsed time is calculated in milliseconds (ms) by time_diff_ms
+    double elapsed_ms = time_diff_ms(&stats->start_time, &now); 
+    
+    // Convert ms to seconds for display
+    double elapsed_s = elapsed_ms / 1000.0; 
+
     printf("\n=== Statistics ===\n");
     printf("Packets received: %u\n", stats->packets_received);
     printf("Packets lost: %u\n", stats->packets_lost);
     printf("Frames received: %u\n", stats->frames_received);
-    printf("Total bytes: %u\n", stats->total_bytes);
+    printf("Total bytes Read: %u\n", stats->total_bytes);
     printf("Retransmit requests: %u\n", stats->retransmit_requests);
     printf("Packets Reordered: %u\n", stats->packets_reordered);
-    printf("Elapsed time: %.2f seconds\n", elapsed);
-    if (elapsed > 0) {
-        printf("Average bitrate: %.2f kbps\n", 
-               (stats->total_bytes * 8.0) / (elapsed * 1000.0));
+    printf("Elapsed time: %.2f seconds\n", elapsed_s);
+    
+    if (elapsed_ms > 0) {
+        // --- BITRATE CALCULATION (Correct) ---
+        // (Bytes * 8) / (ms * 1000) = (Bits / s) / 1000 = kbps
+        printf("Average bitrate: %.2f kbps\n",
+                (stats->total_bytes * 8.0) / elapsed_ms); // Simplified kbps calculation
+
+        // --- FRAME RATE CALCULATION (Corrected) ---
+        // (Frames / ms) * 1000.0 = Frames / s = fps
         printf("Average frame rate: %.2f fps\n",
-               stats->frames_received / elapsed);
+                (stats->frames_received / elapsed_ms) * 1000.0);
     }
     printf("==================\n");
 }
