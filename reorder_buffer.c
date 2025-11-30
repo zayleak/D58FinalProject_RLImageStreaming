@@ -15,7 +15,6 @@ void init_reorder_buffer(reorder_buffer_t *buffer) {
         buffer->slots[i].valid = 0;
         if (!buffer->slots[i].data) {
             fprintf(stderr, "Error: Failed to allocate memory for reorder buffer slot %d\n", i);
-            // In a real app, proper error handling would be required here.
         }
     }
 }

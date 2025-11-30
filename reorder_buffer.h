@@ -10,9 +10,8 @@
 #define REORDER_BUFFER_SIZE 101  // Can hold up to 100 out-of-order packets 0 is reserved for recieved packet
 #define NEXT_PACKET_WAIT_MS 15
 
-//Note Slot 0 is where expected_seq = current_seq
+//note Slot 0 is where expected_seq = current_seq
 
-// Slot in reorder buffer
 typedef struct {
     uint16_t seq;           // Sequence number
     uint8_t *data;          // Packet payload (dynamically allocated)

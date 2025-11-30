@@ -6,7 +6,7 @@ LDFLAGS =
 all: server client
 
 server: server.o rtp_utils.o time_utils.o
-	$(CC) $(CFLAGS) -o server server.o rtp_utils.o time_utils.o  $(LDFLAGS)
+	$(CC) $(CFLAGS) -o server server.o rtp_utils.o time_utils.o $(LDFLAGS)
 
 client: client.o rtp_utils.o stats.o jitter_buffer.o reorder_buffer.o time_utils.o
 	$(CC) $(CFLAGS) -o client client.o rtp_utils.o stats.o jitter_buffer.o reorder_buffer.o time_utils.o $(LDFLAGS)
