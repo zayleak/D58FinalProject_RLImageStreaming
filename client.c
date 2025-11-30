@@ -15,11 +15,11 @@
 #define BUFFER_SIZE 10000000  // 10MB buffer
 #define TIMEOUT_SEC 5
 #define TIMEOUT_MS 50         // 50ms timeout for non-blocking receives
+#define CHUNK_SIZE 1400
 
-// Save frame to file
 void save_frame(uint8_t *buffer, size_t size, int frame_num) {
     char filename[64];
-    snprintf(filename, sizeof(filename), "received_frame_%04d.jpg", frame_num);
+    snprintf(filename, sizeof(filename), "frames/received_frame_%04d.jpg", frame_num);
     FILE *fp = fopen(filename, "wb");
     if (fp) {
         fwrite(buffer, 1, size, fp);
@@ -42,12 +42,11 @@ void send_nack(int sockfd, struct sockaddr_in *server_addr, uint16_t seq) {
     printf("Sent NACK for seq=%u\n", seq);
 }
 
-// Process a packet (add to frame buffer)
 void process_packet(uint8_t *frame_buffer, size_t *frame_offset, 
                     uint16_t seq, uint8_t *payload, size_t payload_size,
                     uint16_t expected_seq) {
-    // Calculate where this packet should go based on sequence number
-    size_t position = (seq - expected_seq) * 1400;  // Assuming 1400 byte chunks
+    // calculate where this packet should go based on sequence number
+    size_t position = (seq - expected_seq) * CHUNK_SIZE; 
     
     if (position + payload_size < BUFFER_SIZE) {
         memcpy(frame_buffer + position, payload, payload_size);

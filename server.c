@@ -7,9 +7,12 @@
 #include <sys/time.h>
 #include <errno.h>
 #include "rtp.h"
+#include "time_utils.h"
 
 #define CHUNK_SIZE 1400
 #define MAX_STORED_PACKETS 1000  // Store sent packets for retransmission
+#define WAIT_NACK_MS 5000 // amount of time waiting for final nacks
+#define GAP_WAIT_NACK_MS 1500 // amount of time waiting between final retransmission nack requests
 
 // Stored packet for retransmission
 typedef struct {
@@ -65,7 +68,7 @@ uint8_t* read_image_file(const char *filename, size_t *file_size) {
 
 uint32_t get_timestamp_ms() {
     struct timeval tv;
-    gettimeofday(&tv, NULL);
+    get_monotonic_time(&tv);
     return (tv.tv_sec * 1000) + (tv.tv_usec / 1000);
 }
 
@@ -118,8 +121,6 @@ int main(int argc, char *argv[]) {
     uint32_t ssrc = 0x12345678;
     uint16_t sequence = 0;
 
-
-    // Send all packets
     while (1) {
         printf("Sending image...\n");
         size_t offset = 0;
@@ -158,7 +159,7 @@ int main(int argc, char *argv[]) {
             sequence++;
             packets_sent++;
         
-            usleep(1000);  // 1ms delay between packets
+            usleep(WAIT_NACK_MS); 
         
             // Check for NACK requests
             nack_packet_t nack;
@@ -184,11 +185,11 @@ int main(int argc, char *argv[]) {
             }
         }
     
-        // Wait a bit for any final NACK requests
+        // wait for any final NACK requests
         printf("\nWaiting for retransmission requests...\n");
-        sleep(2);
+        usleep(WAIT_NACK_MS);
     
-        // Check for final NACKs
+        // check for final NACKs
         for (int i = 0; i < 10; i++) {
             nack_packet_t nack;
             struct sockaddr_in nack_addr;
@@ -209,14 +210,12 @@ int main(int argc, char *argv[]) {
                 }
             }
         
-            usleep(200000);  // 200ms
+            usleep(GAP_WAIT_NACK_MS); 
         }
         printf("\n=== Transmission Complete ===\n");
         printf("Packets sent: %d\n", packets_sent);
         printf("Retransmissions: %d\n", retransmissions);
     }
-    
-
     
     free(image_data);
     close(sockfd);

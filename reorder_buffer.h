@@ -7,8 +7,8 @@
 #include <sys/time.h>
 #include "stats.h"
 
-#define REORDER_BUFFER_SIZE 101  // Can hold up to 100 out-of-order packets
-#define NEXT_PACKET_WAIT_MS 100
+#define REORDER_BUFFER_SIZE 101  // Can hold up to 100 out-of-order packets 0 is reserved for recieved packet
+#define NEXT_PACKET_WAIT_MS 15
 
 //Note Slot 0 is where expected_seq = current_seq
 

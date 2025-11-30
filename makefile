@@ -5,8 +5,8 @@ LDFLAGS =
 # Targets
 all: server client
 
-server: server.o rtp_utils.o
-	$(CC) $(CFLAGS) -o server server.o rtp_utils.o $(LDFLAGS)
+server: server.o rtp_utils.o time_utils.o
+	$(CC) $(CFLAGS) -o server server.o rtp_utils.o time_utils.o  $(LDFLAGS)
 
 client: client.o rtp_utils.o stats.o jitter_buffer.o reorder_buffer.o time_utils.o
 	$(CC) $(CFLAGS) -o client client.o rtp_utils.o stats.o jitter_buffer.o reorder_buffer.o time_utils.o $(LDFLAGS)
@@ -33,7 +33,7 @@ time_utils.o: time_utils.c time_utils.h
 	$(CC) $(CFLAGS) -c time_utils.c
 
 clean:
-	rm -f *.o server client received_frame_*.jpg
+	rm -f *.o server client frames/received_frame_*.jpg
 
 test: all
 	@echo "Build successful! Run the following to test:"

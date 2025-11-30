@@ -8,7 +8,7 @@
 #include "rtp.h" 
 
 #define JITTER_BUFFER_SIZE 50
-#define JITTER_DELAY_MS 100  // Hold packets for 100ms before releasing
+#define JITTER_DELAY_MS 8  // Hold packets for 100ms before releasing
 
 // Buffered packet with timing info
 typedef struct {
@@ -40,8 +40,5 @@ long time_diff_ms(struct timeval *start, struct timeval *end);
 // Try to get a packet from jitter buffer (if ready)
 // Returns: pointer to packet if ready, NULL if should wait longer
 rtp_packet_t* jitter_buffer_get(jitter_buffer_t *jb, size_t *size);
-
-// Get number of packets in buffer
-int jitter_buffer_count(jitter_buffer_t *jb);
 
 #endif // JITTER_BUFFER_H

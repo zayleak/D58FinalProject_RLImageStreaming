@@ -78,8 +78,3 @@ rtp_packet_t* jitter_buffer_get(jitter_buffer_t *jb, size_t *size) {
 
     return NULL;  // Not ready yet
 }
-
-// Get number of packets in buffer
-int jitter_buffer_count(jitter_buffer_t *jb) {
-    return jb->count;
-}

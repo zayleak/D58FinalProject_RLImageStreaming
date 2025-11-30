@@ -9,7 +9,6 @@
 #include <errno.h>
 #include "stats.h"
 #include "time_utils.h"
-// Statistics structure
 
 
 void init_stats(stats_t *stats) {
