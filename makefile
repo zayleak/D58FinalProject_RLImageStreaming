@@ -1,6 +1,6 @@
 CC = gcc
 CFLAGS = -Wall -Wextra -g -std=c99
-LDFLAGS = 
+LDFLAGS = -lm
 
 # Targets
 all: server client
@@ -8,8 +8,8 @@ all: server client
 server: server.o rtp_utils.o time_utils.o
 	$(CC) $(CFLAGS) -o server server.o rtp_utils.o time_utils.o $(LDFLAGS)
 
-client: client.o rtp_utils.o stats.o jitter_buffer.o reorder_buffer.o time_utils.o
-	$(CC) $(CFLAGS) -o client client.o rtp_utils.o stats.o jitter_buffer.o reorder_buffer.o time_utils.o $(LDFLAGS)
+client: client.o rtp_utils.o stats.o jitter_buffer.o reorder_buffer.o time_utils.o nack_buffer.o
+	$(CC) $(CFLAGS) -o client client.o rtp_utils.o stats.o jitter_buffer.o reorder_buffer.o time_utils.o nack_buffer.o $(LDFLAGS)
 
 jitter_buffer.o: jitter_buffer.c jitter_buffer.h 
 	$(CC) $(CFLAGS) -c jitter_buffer.c
@@ -31,6 +31,9 @@ stats.o: stats.c stats.h
 
 time_utils.o: time_utils.c time_utils.h
 	$(CC) $(CFLAGS) -c time_utils.c
+
+nack_buffer.o: nack_buffer.c nack_buffer.h 
+	$(CC) $(CFLAGS) -c nack_buffer.c
 
 clean:
 	rm -f *.o server client frames/received_frame_*.jpg

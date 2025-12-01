@@ -2,6 +2,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <arpa/inet.h>
+#include <sys/socket.h>
 
 void init_rtp_header(rtp_header_t *header, uint16_t seq, uint32_t timestamp, uint32_t ssrc) {
     memset(header, 0, sizeof(rtp_header_t));
@@ -38,4 +39,16 @@ void print_rtp_header(rtp_header_t *header) {
     printf("Timestamp: %u\n", ntohl(header->timestamp));
     printf("SSRC: 0x%08x\n", ntohl(header->ssrc));
     printf("==================\n");
+}
+
+void send_nack(int sockfd, struct sockaddr_in *server_addr, uint16_t seq) {
+    nack_packet_t nack;
+    nack.type = PACKET_TYPE_NACK;
+    nack.seq_start = htons(seq);
+    nack.seq_count = htons(1);
+    
+    sendto(sockfd, &nack, sizeof(nack), 0, 
+           (struct sockaddr*)server_addr, sizeof(*server_addr));
+    
+    printf("Sent NACK for seq=%u\n", seq);
 }
