@@ -35,10 +35,7 @@ void print_stats(stats_t *stats) {
     struct timeval now;
     get_monotonic_time(&now);
     
-    // Elapsed time is calculated in milliseconds (ms) by time_diff_ms
     double elapsed_ms = time_diff_ms(&stats->start_time, &now); 
-    
-    // Convert ms to seconds for display
     double elapsed_s = elapsed_ms / 1000.0; 
 
     printf("\n=== Statistics ===\n");
@@ -51,13 +48,8 @@ void print_stats(stats_t *stats) {
     printf("Elapsed time: %.2f seconds\n", elapsed_s);
     
     if (elapsed_ms > 0) {
-        // --- BITRATE CALCULATION (Correct) ---
-        // (Bytes * 8) / (ms * 1000) = (Bits / s) / 1000 = kbps
         printf("Average bitrate: %.2f kbps\n",
-                (stats->total_bytes * 8.0) / elapsed_ms); // Simplified kbps calculation
-
-        // --- FRAME RATE CALCULATION (Corrected) ---
-        // (Frames / ms) * 1000.0 = Frames / s = fps
+                (stats->total_bytes * 8.0) / elapsed_ms);
         printf("Average frame rate: %.2f fps\n",
                 (stats->frames_received / elapsed_ms) * 1000.0);
     }

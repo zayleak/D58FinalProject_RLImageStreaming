@@ -10,9 +10,6 @@
 #include <sys/time.h>
 #include <errno.h>
 
-/**
- * Structure to hold real-time RTP packet and frame statistics.
- */
 typedef struct {
     uint32_t packets_received;
     uint32_t packets_lost;

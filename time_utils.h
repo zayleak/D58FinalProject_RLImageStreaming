@@ -1,8 +1,8 @@
 #ifndef TIME_UTILS_H
 #define TIME_UTILS_H
 
-#include <sys/time.h> // Required for struct timeval
-#include <time.h>     // Required for struct timespec
+#include <sys/time.h> 
+#include <time.h>    
 
 void get_monotonic_time(struct timeval *tv);
 

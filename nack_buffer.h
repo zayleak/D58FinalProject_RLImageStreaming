@@ -10,9 +10,9 @@
 #define RTT_MS 13
 
 typedef struct {
-    uint16_t seq;           // Sequence number being tracked
-    uint8_t retry_count;    // Number of NACKs sent for this seq
-    struct timeval last_nack_time; // Monotonic time of the last NACK request
+    uint16_t seq;          
+    uint8_t retry_count;    
+    struct timeval last_nack_time; 
 } nack_entry_t;
 
 typedef struct {

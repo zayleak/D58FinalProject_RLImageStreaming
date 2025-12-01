@@ -3,7 +3,7 @@
 #include <time.h>
 #include <stdio.h>
 #include <string.h>
-#include <sys/time.h> // Keep for struct timeval definition
+#include <sys/time.h> 
 
 void get_monotonic_time(struct timeval *tv) {
     struct timespec ts;
@@ -16,8 +16,6 @@ void get_monotonic_time(struct timeval *tv) {
 long time_diff_ms(struct timeval *start, struct timeval *end) {
     long seconds = end->tv_sec - start->tv_sec;
     long useconds = end->tv_usec - start->tv_usec;
-
-    // (seconds * 1000) + (microseconds / 1000)
     long mtime = (seconds * 1000) + (useconds / 1000);
 
     return mtime;

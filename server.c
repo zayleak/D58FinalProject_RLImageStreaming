@@ -10,11 +10,10 @@
 #include "time_utils.h"
 
 #define CHUNK_SIZE 1400
-#define MAX_STORED_PACKETS 1000  // Store sent packets for retransmission
+#define MAX_STORED_PACKETS 1000  
 #define WAIT_NACK_MS 5000 // amount of time waiting for final nacks
 #define GAP_WAIT_NACK_MS 2000 // amount of time waiting between final retransmission nack requests
 
-// Stored packet for retransmission
 typedef struct {
     rtp_packet_t packet;
     size_t size;
@@ -22,10 +21,8 @@ typedef struct {
     int valid;
 } stored_packet_t;
 
-// Packet storage
 stored_packet_t packet_storage[MAX_STORED_PACKETS];
 
-// Store sent packet for possible retransmission
 void store_packet(rtp_packet_t *packet, size_t size, uint16_t seq) {
     int index = seq % MAX_STORED_PACKETS;
     memcpy(&packet_storage[index].packet, packet, size);
@@ -34,7 +31,6 @@ void store_packet(rtp_packet_t *packet, size_t size, uint16_t seq) {
     packet_storage[index].valid = 1;
 }
 
-// Retrieve stored packet
 stored_packet_t* get_stored_packet(uint16_t seq) {
     int index = seq % MAX_STORED_PACKETS;
     if (packet_storage[index].valid && packet_storage[index].seq == seq) {
@@ -43,7 +39,6 @@ stored_packet_t* get_stored_packet(uint16_t seq) {
     return NULL;
 }
 
-// Read image file
 uint8_t* read_image_file(const char *filename, size_t *file_size) {
     FILE *fp = fopen(filename, "rb");
     if (!fp) {
@@ -90,20 +85,17 @@ int main(int argc, char *argv[]) {
         return 1;
     }
     
-    // Set socket to non-blocking to check for NACKs
     struct timeval timeout;
     timeout.tv_sec = 0;
-    timeout.tv_usec = 1000;  // 1ms timeout
+    timeout.tv_usec = 1000;  
     setsockopt(sockfd, SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
     
-    // Setup client address
     struct sockaddr_in client_addr;
     memset(&client_addr, 0, sizeof(client_addr));
     client_addr.sin_family = AF_INET;
     client_addr.sin_port = htons(port);
     client_addr.sin_addr.s_addr = inet_addr(client_ip);
     
-    // Read image
     size_t image_size;
     uint8_t *image_data = read_image_file(image_file, &image_size);
     if (!image_data) {
@@ -152,7 +144,6 @@ int main(int argc, char *argv[]) {
             sendto(sockfd, &packet, packet_size, 0,
                    (struct sockaddr*)&client_addr, sizeof(client_addr));
         
-            // Store for retransmission
             store_packet(&packet, packet_size, sequence);
         
             offset += chunk_size;
@@ -161,7 +152,6 @@ int main(int argc, char *argv[]) {
         
             usleep(WAIT_NACK_MS); 
         
-            // Check for NACK requests
             nack_packet_t nack;
             struct sockaddr_in nack_addr;
             socklen_t nack_addr_len = sizeof(nack_addr);
@@ -185,11 +175,9 @@ int main(int argc, char *argv[]) {
             }
         }
     
-        // wait for any final NACK requests
         printf("\nWaiting for retransmission requests...\n");
         usleep(WAIT_NACK_MS);
     
-        // check for final NACKs
         for (int i = 0; i < 10; i++) {
             nack_packet_t nack;
             struct sockaddr_in nack_addr;

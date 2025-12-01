@@ -30,7 +30,6 @@ int create_rtp_packet(rtp_packet_t *packet, uint16_t seq, uint32_t timestamp,
     return sizeof(rtp_header_t) + data_len;
 }
 
-// Print RTP header information (for debugging)
 void print_rtp_header(rtp_header_t *header) {
     printf("=== RTP Header ===\n");
     printf("Version: %d\n", header->version);
