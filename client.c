@@ -11,11 +11,14 @@
 #include "stats.h"
 #include "reorder_buffer.h"
 #include "jitter_buffer.h"
+#include "nack_buffer.h" 
+#include "time_utils.h"
 
 #define BUFFER_SIZE 10000000  // 10MB buffer
 #define TIMEOUT_SEC 5
 #define TIMEOUT_MS 50         // 50ms timeout for non-blocking receives
 #define CHUNK_SIZE 1400
+#define FRAME_TIMEOUT_MS 500 
 
 void save_frame(uint8_t *buffer, size_t size, int frame_num) {
     char filename[64];
@@ -28,18 +31,6 @@ void save_frame(uint8_t *buffer, size_t size, int frame_num) {
     } else {
         perror("Failed to save frame");
     }
-}
-
-void send_nack(int sockfd, struct sockaddr_in *server_addr, uint16_t seq) {
-    nack_packet_t nack;
-    nack.type = PACKET_TYPE_NACK;
-    nack.seq_start = htons(seq);
-    nack.seq_count = htons(1);
-    
-    sendto(sockfd, &nack, sizeof(nack), 0, 
-           (struct sockaddr*)server_addr, sizeof(*server_addr));
-    
-    printf("Sent NACK for seq=%u\n", seq);
 }
 
 void process_packet(uint8_t *frame_buffer, size_t *frame_offset, 
@@ -97,8 +88,12 @@ int main(int argc, char *argv[]) {
     // Allocate buffers
     reorder_buffer_t reorder_buf;
     jitter_buffer_t jitter_buf;
+    nack_buffer_t nack_buf; 
+
     init_reorder_buffer(&reorder_buf);
     init_jitter_buffer(&jitter_buf);
+    init_nack_buffer(&nack_buf);
+
     uint8_t *frame_buffer = (uint8_t*)malloc(BUFFER_SIZE);
     uint8_t *last_complete_frame = (uint8_t*)malloc(BUFFER_SIZE);
     if (!frame_buffer || !last_complete_frame) {
@@ -117,7 +112,7 @@ int main(int argc, char *argv[]) {
     uint16_t frame_start_seq = 0;
     uint16_t max_seq_received = 0;
     int first_packet = 1;
-
+    struct timeval frame_start_time = {0, 0};
     struct sockaddr_in server_addr;
     socklen_t server_addr_len = sizeof(server_addr);
 
@@ -129,9 +124,10 @@ int main(int argc, char *argv[]) {
         stats.packets_received++;
         stats.total_bytes += recv_len;
 
-        
+
         if (recv_len > 0) {
             uint16_t seq = ntohs(packet.header.sequence);
+            clear_nack_entry(&nack_buf, seq);
 
             // --- NEW NACK STRATEGY START ---
             if (first_packet) {
@@ -152,6 +148,7 @@ int main(int argc, char *argv[]) {
                     for (int i = 1; i < diff; i++) {
                         uint16_t missing_seq = max_seq_received + i;
                         send_nack(sockfd, &server_addr, missing_seq);
+                        record_nack_attempt(&nack_buf, missing_seq);
                         stats.retransmit_requests++;
                     }
                 }
@@ -163,10 +160,14 @@ int main(int argc, char *argv[]) {
             jitter_buffer_add(&jitter_buf, &packet, recv_len);
         }
         
+  
+        manage_nack_timeouts(&nack_buf, sockfd, &server_addr);
+
         // Step 2: Process packets from jitter buffer (if ready)
         size_t jitter_packet_size;
         rtp_packet_t *ready_packet = jitter_buffer_get(&jitter_buf, &jitter_packet_size);
 
+     
         
         if (ready_packet != NULL) {
             // Extract packet info

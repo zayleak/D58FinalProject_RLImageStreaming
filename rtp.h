@@ -4,6 +4,8 @@
 #include <stdint.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
 
 // RTP Header Structure (12 bytes minimum)
 typedef struct {
@@ -45,5 +47,6 @@ void init_rtp_header(rtp_header_t *header, uint16_t seq, uint32_t timestamp, uin
 int create_rtp_packet(rtp_packet_t *packet, uint16_t seq, uint32_t timestamp, 
                       uint32_t ssrc, uint8_t *data, size_t data_len);
 void print_rtp_header(rtp_header_t *header);
+void send_nack(int sockfd, struct sockaddr_in *server_addr, uint16_t seq);
 
 #endif // RTP_H

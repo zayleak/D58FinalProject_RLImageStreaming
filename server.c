@@ -12,7 +12,7 @@
 #define CHUNK_SIZE 1400
 #define MAX_STORED_PACKETS 1000  // Store sent packets for retransmission
 #define WAIT_NACK_MS 5000 // amount of time waiting for final nacks
-#define GAP_WAIT_NACK_MS 1500 // amount of time waiting between final retransmission nack requests
+#define GAP_WAIT_NACK_MS 2000 // amount of time waiting between final retransmission nack requests
 
 // Stored packet for retransmission
 typedef struct {
