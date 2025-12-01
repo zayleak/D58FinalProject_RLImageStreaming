@@ -15,7 +15,7 @@ SERVER_IP = '10.0.0.2'
 IMAGE_FILE = 'test_image.jpg'
 CLIENT_LOG_FILE = 'h2_client_log.txt'
 CLIENT_TIMEOUT_SEC = 6
-RECEIVED_FRAMES_DIR = "frames"
+RECEIVED_FRAMES_DIR = 'frames'
 
 def setup_network(loss, delay, bw, reorder):
     info('*** Starting Mininet with TCLink (Loss: {}%, Delay: {}, BW: {}Mbps, Reorder: {}%)\n'.format(loss, delay, bw, reorder))
@@ -129,16 +129,23 @@ def compare_all_frames(original_path, received_dir_path):
 def run_test_scenario(duration_sec, loss, delay, bw, reorder):
     net, h1, h2 = setup_network(loss, delay, bw, reorder)
     
-    log_path = '/tmp/{}'.format(CLIENT_LOG_FILE) 
-    received_dir_path_host = '/tmp/{}'.format(RECEIVED_FRAMES_DIR)
+    log_path = '/{}'.format(CLIENT_LOG_FILE) 
+    received_dir_path_host = '{}'.format(RECEIVED_FRAMES_DIR)
     
-    info('*** Cleaning up previous output files and directories from /tmp\n')
+    info('*** Cleaning up previous output files and directories \n')
     if os.path.exists(log_path):
         os.remove(log_path)
     if os.path.exists(received_dir_path_host):
         os.system('rm -rf {}'.format(received_dir_path_host))
+        os.makedirs('frames')
 
     try:
+        info('*** Cleaning and compiling binaries on h1...\n')
+   
+        h1.cmd('make clean && make')
+        
+     
+        time.sleep(0.5)
         info('*** Starting Client (h2) in background...\n')
         client_cmd = './client {} > {} 2>&1 &'.format(CLIENT_PORT, CLIENT_LOG_FILE)
         h2.cmd(client_cmd)
@@ -163,7 +170,7 @@ def run_test_scenario(duration_sec, loss, delay, bw, reorder):
         h2.cmd('cp {} /tmp/'.format(CLIENT_LOG_FILE))
         h2.cmd('cp -r {} /tmp/'.format(RECEIVED_FRAMES_DIR))
 
-        info('*** Test finished. Output files are in /tmp/ on the host OS:\n')
+        info('*** Test finished. Output files are in /frames on the host OS:\n')
         info('    - Log: {}\n'.format(log_path))
         info('    - Received Frames Directory: {}\n'.format(received_dir_path_host))
 
