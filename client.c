@@ -18,6 +18,7 @@
 #define TIMEOUT_SEC 5
 #define CHUNK_SIZE 1400
 
+
 int is_valid_jpeg(uint8_t *buf, size_t size) {
     if (size < 4) return 0;
 
@@ -118,8 +119,6 @@ int main(int argc, char *argv[]) {
     uint16_t frame_end_seq = 0; 
     uint16_t max_seq_received = 0;
     int first_packet = 1;
-    
-    struct timeval frame_start_time = {0, 0};
 
     struct sockaddr_in server_addr;
     socklen_t server_addr_len = sizeof(server_addr);
@@ -143,7 +142,6 @@ int main(int argc, char *argv[]) {
             if (first_packet) {
                 max_seq_received = seq;
                 first_packet = 0;
-                frame_start_time = now;
             } else {
                 int16_t diff = seq - max_seq_received;
             
@@ -189,7 +187,6 @@ int main(int argc, char *argv[]) {
             if (current_timestamp == 0) {
                 current_timestamp = timestamp;
                 frame_start_seq = seq;
-                frame_start_time = now; 
             }
 
             if (ready_packet->header.marker) {

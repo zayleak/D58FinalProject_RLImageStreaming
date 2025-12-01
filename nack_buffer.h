@@ -7,7 +7,7 @@
 
 #define NACK_BUFFER_SIZE 256
 #define NACK_MAX_RETRIES 3
-#define RTT_MS 20
+#define RTT_MS 13
 
 typedef struct {
     uint16_t seq;           // Sequence number being tracked
