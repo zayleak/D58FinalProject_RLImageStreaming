@@ -78,7 +78,6 @@ int main(int argc, char *argv[]) {
     int port = atoi(argv[2]);
     const char *image_file = argv[3];
     
-    // Create UDP socket
     int sockfd = socket(AF_INET, SOCK_DGRAM, 0);
     if (sockfd < 0) {
         perror("Socket creation failed");
@@ -130,7 +129,7 @@ int main(int argc, char *argv[]) {
             int packet_size = create_rtp_packet(&packet, sequence, timestamp,
                                                ssrc, image_data + offset, chunk_size);
         
-            // Mark last packet
+  
             if (offset + chunk_size >= image_size) {
                 packet.header.marker = 1;
                 printf("Packet %d (seq=%u): %zu bytes [LAST PACKET]\n", 
@@ -140,7 +139,7 @@ int main(int argc, char *argv[]) {
                        packets_sent, sequence, chunk_size);
             }
         
-            // Send packet
+
             sendto(sockfd, &packet, packet_size, 0,
                    (struct sockaddr*)&client_addr, sizeof(client_addr));
         
